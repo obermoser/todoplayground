@@ -5,27 +5,26 @@ import { and, eq } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
 import { getDb } from "@/lib/db"
-import { todos } from "@/lib/db/schema"
-import { TodoItemSchema } from "@/lib/schemas"
+import { NewTodoSchema, todos } from "@/lib/db/schema"
 
-const NewTodoSchema = TodoItemSchema.pick({ title: true, description: true })
-
-async function requireUserId() {
-  const { userId } = await auth()
+async function requireOrgContext() {
+  const { userId, orgId } = await auth()
   if (!userId) throw new Error("Unauthorized")
-  return userId
+  if (!orgId) throw new Error("No active organization")
+  return { userId, orgId }
 }
 
 export async function getTodos() {
-  const userId = await requireUserId()
-  return getDb().select().from(todos).where(eq(todos.userId, userId))
+  const { orgId } = await requireOrgContext()
+  return getDb().select().from(todos).where(eq(todos.organizationId, orgId))
 }
 
-export async function addTodo(title: string, description?: string) {
-  const userId = await requireUserId()
+export async function addTodo(title: string, description?: string | null) {
+  const { userId, orgId } = await requireOrgContext()
   const result = NewTodoSchema.parse({ title, description })
 
   await getDb().insert(todos).values({
+    organizationId: orgId,
     userId,
     title: result.title,
     description: result.description,
@@ -35,30 +34,30 @@ export async function addTodo(title: string, description?: string) {
 }
 
 export async function toggleTodo(id: string) {
-  const userId = await requireUserId()
+  const { orgId } = await requireOrgContext()
   const db = getDb()
 
   const [existing] = await db
     .select({ isCompleted: todos.isCompleted })
     .from(todos)
-    .where(and(eq(todos.id, id), eq(todos.userId, userId)))
+    .where(and(eq(todos.id, id), eq(todos.organizationId, orgId)))
 
   if (!existing) throw new Error("Not found")
 
   await db
     .update(todos)
     .set({ isCompleted: !existing.isCompleted })
-    .where(and(eq(todos.id, id), eq(todos.userId, userId)))
+    .where(and(eq(todos.id, id), eq(todos.organizationId, orgId)))
 
   revalidatePath("/")
 }
 
 export async function removeTodo(id: string) {
-  const userId = await requireUserId()
+  const { orgId } = await requireOrgContext()
 
   await getDb()
     .delete(todos)
-    .where(and(eq(todos.id, id), eq(todos.userId, userId)))
+    .where(and(eq(todos.id, id), eq(todos.organizationId, orgId)))
 
   revalidatePath("/")
 }

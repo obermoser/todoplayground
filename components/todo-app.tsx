@@ -4,7 +4,7 @@ import { Plus, Trash2 } from "lucide-react"
 import { useEffect, useMemo, useOptimistic, useState, useTransition } from "react"
 
 import { addTodo, removeTodo, toggleTodo } from "@/lib/actions/todos"
-import { TodoItemSchema } from "@/lib/schemas"
+import { NewTodoSchema, type Todo } from "@/lib/db/schema"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,24 +20,17 @@ import { Textarea } from "@/components/ui/textarea"
 
 type Filter = "open" | "completed" | "all"
 
-export type Todo = {
-  id: string
-  title: string
-  description: string | null
-  isCompleted: boolean
-}
+type TodoView = Pick<Todo, "id" | "title" | "description" | "isCompleted">
 
 type OptimisticAction =
-  | { type: "add"; todo: Todo }
+  | { type: "add"; todo: TodoView }
   | { type: "toggle"; id: string }
   | { type: "remove"; id: string }
 
-const NewTodoSchema = TodoItemSchema.pick({ title: true, description: true })
-
-export function TodoApp({ initialTodos }: { initialTodos: Todo[] }) {
+export function TodoApp({ initialTodos }: { initialTodos: TodoView[] }) {
   const [todos, applyOptimistic] = useOptimistic(
     initialTodos,
-    (state: Todo[], action: OptimisticAction) => {
+    (state: TodoView[], action: OptimisticAction) => {
       switch (action.type) {
         case "add":
           return [...state, action.todo]
